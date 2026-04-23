@@ -95,6 +95,17 @@ function useMarketClock() {
   return { status, remaining, pct: Math.min(100, Math.max(0, pct)), fmt, etStr };
 }
 
+function useIsMobile() {
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+  return mobile;
+}
+
 /* ── Canvas ───────────────────────────────────────────────── */
 function PriceChart({ data, positive, dark }) {
   const ref = useRef(null);
@@ -276,7 +287,9 @@ function Dashboard({ user, onLogout }) {
   const [dark, setDarkRaw] = useState(() => { try { const d = JSON.parse(localStorage.getItem("u:" + user)); return d?.dark ?? false; } catch { return false; } });
   const [favorites, setFavRaw] = useState(() => { try { const d = JSON.parse(localStorage.getItem("u:" + user)); return d?.favorites || ["AAPL", "MSFT", "NVDA"]; } catch { return ["AAPL", "MSFT", "NVDA"]; } });
   const [selected, setSelected] = useState("AAPL");
-  const [tab, setTab] = useState("overview");
+  const [tab, setTab] = useState("market");
+  const isMobile = useIsMobile();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [period, setPeriod] = useState("3M");
   const [search, setSearch] = useState("");
   const [searchRes, setSearchRes] = useState([]);
@@ -382,15 +395,17 @@ function Dashboard({ user, onLogout }) {
   const getMkt = sym => { const q = mktData[sym], m = META[sym] || { name: sym, symbol: sym }; return q ? { ...m, price: q.price, change: q.change, changePct: q.changePct } : { ...m, price: null, change: 0, changePct: 0 }; };
   const indices = MKT_SYMS.indices.map(getMkt), commodities = MKT_SYMS.commodities.map(getMkt), bonds = MKT_SYMS.bonds.map(getMkt), rates = MKT_SYMS.rates.map(getMkt);
 
-  const TABS = [["overview", "개요"], ["rev", "매출성장"], ["fund", "펀더멘탈"], ["fin", "재무지표"], ["news", "뉴스"], ["cal", "일정"], ["market", "시장현황"]];
+  const TABS = [["market", "시장현황"], ["overview", "개요"], ["rev", "매출성장"], ["fund", "펀더멘탈"], ["fin", "재무지표"], ["news", "뉴스"], ["cal", "일정"]];
   const card = { background: C.sf, border: `1px solid ${C.b}`, borderRadius: 14, padding: "16px 18px" };
   const scard = { background: C.sf, border: `1px solid ${C.b}`, borderRadius: 12, padding: "12px 14px" };
   const avatarColor = ["#3b82f6", "#10b981", "#f59e0b", "#f43f5e", "#8b5cf6", "#06b6d4"][user.charCodeAt(0) % 6];
 
   return (
     <div style={{ display: "flex", height: "100vh", background: C.bg, overflow: "hidden", fontFamily: "-apple-system,'Segoe UI',sans-serif" }}>
+      {/* Mobile backdrop */}
+      {isMobile && sidebarOpen && <div onClick={() => setSidebarOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 99 }} />}
       {/* Sidebar */}
-      <div style={{ width: 192, background: C.sf, borderRight: `1px solid ${C.b}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
+      <div style={{ width: 220, background: C.sf, borderRight: `1px solid ${C.b}`, display: "flex", flexDirection: "column", flexShrink: 0, ...(isMobile ? { position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 100, transform: sidebarOpen ? "translateX(0)" : "translateX(-100%)", transition: "transform 0.25s ease", width: 260 } : {}) }}>
         <div style={{ padding: "14px 12px 10px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
             <span style={{ fontSize: 13, fontWeight: 800, color: C.t }}>US Stocks</span>
@@ -430,8 +445,10 @@ function Dashboard({ user, onLogout }) {
 
       {/* Main */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
-        <div style={{ background: C.sf, borderBottom: `1px solid ${C.b}`, padding: "13px 20px 0", flexShrink: 0 }}>
+        <div style={{ background: C.sf, borderBottom: `1px solid ${C.b}`, padding: isMobile ? "10px 14px 0" : "13px 20px 0", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+              {isMobile && <button onClick={() => setSidebarOpen(p => !p)} style={{ background: C.s2, border: `1px solid ${C.b}`, borderRadius: 8, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: C.t, flexShrink: 0, marginTop: 2 }}>☰</button>}
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <span style={{ fontSize: 20, fontWeight: 800, color: C.t }}>{selected}</span>
@@ -444,19 +461,23 @@ function Dashboard({ user, onLogout }) {
                 {dataLoading ? <Sk w={160} h={26} r={8} /> : <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}><span style={{ fontSize: 26, fontWeight: 800, color: C.t }}>{d.price ? "$" + d.price.toFixed(2) : "—"}</span><span style={{ fontSize: 13, fontWeight: 700, color: pos ? C.g : C.r }}>{pos ? "▲ " : "▼ "}{Math.abs(d.change).toFixed(2)} ({pos ? "+" : ""}{d.changePct.toFixed(2)}%)</span></div>}
               </div>
             </div>
-            <div style={{ display: "flex", gap: 7, flexShrink: 0 }}>
-              {dataLoading ? [0, 1, 2, 3].map(i => <Sk key={i} w={52} h={44} r={10} />) : [["시총", d.mktCap || "—"], ["P/E", d.pe || "—"], ["EPS", "$" + (d.eps || "—")], ["목표가", targetPrice ? "$" + targetPrice : "—"]].map(([k, v]) => <div key={k} style={{ background: C.s2, borderRadius: 10, padding: "7px 11px", textAlign: "center" }}><div style={{ fontSize: 9, color: C.m, fontWeight: 600, textTransform: "uppercase" }}>{k}</div><div style={{ fontSize: 12, fontWeight: 700, color: C.t, marginTop: 1 }}>{v}</div></div>)}
             </div>
+            {!isMobile && <div style={{ display: "flex", gap: 7, flexShrink: 0 }}>
+              {dataLoading ? [0, 1, 2, 3].map(i => <Sk key={i} w={52} h={44} r={10} />) : [["시총", d.mktCap || "—"], ["P/E", d.pe || "—"], ["EPS", "$" + (d.eps || "—")], ["목표가", targetPrice ? "$" + targetPrice : "—"]].map(([k, v]) => <div key={k} style={{ background: C.s2, borderRadius: 10, padding: "7px 11px", textAlign: "center" }}><div style={{ fontSize: 9, color: C.m, fontWeight: 600, textTransform: "uppercase" }}>{k}</div><div style={{ fontSize: 12, fontWeight: 700, color: C.t, marginTop: 1 }}>{v}</div></div>)}
+            </div>}
           </div>
-          <div style={{ borderTop: `1px solid ${C.b}`, paddingTop: 7, marginBottom: 2 }}>
+          {!isMobile && <div style={{ borderTop: `1px solid ${C.b}`, paddingTop: 7, marginBottom: 2 }}>
             <ClockBar C={C} dark={dark} indices={indices} />
-          </div>
-          <div style={{ display: "flex", alignItems: "center" }}>
-            {TABS.map(([t, l]) => <button key={t} onClick={() => setTab(t)} style={{ padding: "8px 13px", fontSize: 12, fontWeight: tab === t ? 700 : 500, background: "transparent", border: "none", borderBottom: tab === t ? `2px solid ${C.acc}` : "2px solid transparent", color: tab === t ? C.acc : C.m, whiteSpace: "nowrap", cursor: "pointer" }}>{l}</button>)}
+          </div>}
+          <div style={{ display: "flex", alignItems: "center", overflowX: "auto", scrollbarWidth: "none", msOverflowStyle: "none", gap: 2 }}>
+            {TABS.map(([t, l]) => {
+              const isMkt = t === "market";
+              return <button key={t} onClick={() => setTab(t)} style={isMkt ? { padding: "6px 14px", fontSize: 12, fontWeight: 700, borderRadius: 20, border: `1px solid ${tab === t ? C.acc : C.b2}`, background: tab === t ? C.acc : (dark ? "rgba(59,130,246,0.18)" : "rgba(59,130,246,0.1)"), color: tab === t ? "#fff" : C.acc, whiteSpace: "nowrap", cursor: "pointer", marginRight: 6, flexShrink: 0 } : { padding: "8px 13px", fontSize: 12, fontWeight: tab === t ? 700 : 500, background: "transparent", border: "none", borderBottom: tab === t ? `2px solid ${C.acc}` : "2px solid transparent", color: tab === t ? C.acc : C.m, whiteSpace: "nowrap", cursor: "pointer", flexShrink: 0 }}>{l}</button>;
+            })}
           </div>
         </div>
 
-        <div style={{ flex: 1, overflowY: "auto", padding: "14px 20px", background: C.bg }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: isMobile ? "12px 10px" : "14px 20px", background: C.bg }}>
 
           {tab === "overview" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -478,10 +499,10 @@ function Dashboard({ user, onLogout }) {
                 }
               </div>
               {/* 요약 지표 */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: 10 }}>
                 {[[buyPct + "%", "매수의견", C.g], [targetPrice ? "$" + targetPrice : "—", "목표주가(추정)", C.acc], [(d.changePct > 0 ? "+" : "") + d.changePct.toFixed(2) + "%", "당일 등락", pos ? C.g : C.r], [overall + "점", "종합스코어", sc(overall)]].map(([v, l, col]) => <div key={l} style={{ ...card, textAlign: "center" }}><div style={{ fontSize: 22, fontWeight: 800, color: col }}>{v}</div><div style={{ fontSize: 11, color: C.m, marginTop: 3 }}>{l}</div></div>)}
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10 }}>
                 <div style={card}><div style={{ fontSize: 12, fontWeight: 700, color: C.m, marginBottom: 12 }}>애널리스트 컨센서스 · {tot}명</div><div style={{ display: "flex", borderRadius: 8, overflow: "hidden", height: 10, marginBottom: 10 }}><div style={{ width: buyPct + "%", background: C.g }} /><div style={{ width: holdPct + "%", background: C.am }} /><div style={{ width: sellPct + "%", background: C.r }} /></div><div style={{ display: "flex", gap: 16, fontSize: 12 }}>{[["매수", buyPct, C.g], ["보유", holdPct, C.am], ["매도", sellPct, C.r]].map(([l, v, c]) => <div key={l}><span style={{ color: c, fontWeight: 700 }}>{v}%</span> <span style={{ color: C.m }}>{l}</span></div>)}</div></div>
                 <div style={card}><div style={{ fontSize: 12, fontWeight: 700, color: C.m, marginBottom: 10 }}>펀더멘탈 스코어</div><div style={{ display: "flex", gap: 6 }}>{[["수익성", prof], ["성장성", grow], ["안정성", stab], ["밸류", valu]].map(([l, v]) => <div key={l} style={{ flex: 1, textAlign: "center", padding: "8px 4px", borderRadius: 10, background: sbg(v) }}><div style={{ fontSize: 18, fontWeight: 800, color: sc(v) }}>{v}</div><div style={{ fontSize: 9, color: sc(v), fontWeight: 600, marginTop: 2 }}>{l}</div></div>)}</div></div>
               </div>
@@ -492,22 +513,22 @@ function Dashboard({ user, onLogout }) {
           {tab === "rev" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div style={card}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}><div style={{ fontSize: 12, fontWeight: 700, color: C.m }}>분기별 매출 & YoY 성장률</div><div style={{ display: "flex", gap: 14, fontSize: 11, color: C.m }}><span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: dark ? "#60a5fa" : "#3b82f6", display: "inline-block" }} />매출</span><span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 14, height: 2, background: C.g, display: "inline-block" }} />YoY</span></div></div><RevCanvas data={fund.qrev || []} dark={dark} /></div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10 }}>{(fund.qrev || []).slice(-4).map((q, i) => <div key={i} style={card}><div style={{ fontSize: 10, color: C.m, fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>{q.q}</div><div style={{ fontSize: 18, fontWeight: 800, color: C.t }}>${q.rev}B</div><div style={{ marginTop: 4, display: "inline-flex", padding: "2px 8px", borderRadius: 20, background: q.g >= 0 ? (dark ? "rgba(16,185,129,0.15)" : "rgba(16,185,129,0.1)") : (dark ? "rgba(244,63,94,0.15)" : "rgba(244,63,94,0.1)"), fontSize: 11, fontWeight: 700, color: q.g >= 0 ? C.g : C.r }}>{q.g > 0 ? "+" : ""}{q.g}% YoY</div></div>)}</div>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: 10 }}>{(fund.qrev || []).slice(-4).map((q, i) => <div key={i} style={card}><div style={{ fontSize: 10, color: C.m, fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>{q.q}</div><div style={{ fontSize: 18, fontWeight: 800, color: C.t }}>${q.rev}B</div><div style={{ marginTop: 4, display: "inline-flex", padding: "2px 8px", borderRadius: 20, background: q.g >= 0 ? (dark ? "rgba(16,185,129,0.15)" : "rgba(16,185,129,0.1)") : (dark ? "rgba(244,63,94,0.15)" : "rgba(244,63,94,0.1)"), fontSize: 11, fontWeight: 700, color: q.g >= 0 ? C.g : C.r }}>{q.g > 0 ? "+" : ""}{q.g}% YoY</div></div>)}</div>
             </div>
           )}
 
           {tab === "fund" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "220px 1fr", gap: 12 }}>
                 <div style={card}><div style={{ fontSize: 12, fontWeight: 700, color: C.m, marginBottom: 4 }}>레이더 차트</div><RadarSVG scores={scores} dark={dark} /></div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{[["수익성", prof, "매출총이익률 · 순이익률 · ROE"], ["성장성", grow, "매출성장 · EPS성장"], ["안정성", stab, "유동비율 · 부채비율"], ["밸류에이션", valu, "P/E 기반"], ["EPS 성장", epsg, "EPS 성장 추세"]].map(([l, v, desc]) => <div key={l} style={{ ...card, padding: "12px 14px", display: "flex", alignItems: "center", gap: 14 }}><div style={{ width: 44, height: 44, borderRadius: "50%", background: sbg(v), display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><span style={{ fontSize: 15, fontWeight: 800, color: sc(v) }}>{v}</span></div><div style={{ flex: 1 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}><span style={{ fontSize: 13, fontWeight: 700, color: C.t }}>{l}</span><span style={{ fontSize: 10, color: C.m }}>{desc}</span></div><div style={{ height: 6, background: C.s2, borderRadius: 4 }}><div style={{ height: "100%", width: v + "%", background: sc(v), borderRadius: 4 }} /></div></div></div>)}</div>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>{[["수익성 상세", [["매출총이익률", fund.grossMargin || 0, 100, "%"], ["순이익률", fund.netMargin || 0, 50, "%"], ["ROE", Math.min(fund.roe || 0, 150), 150, "%"]], C.g], ["성장성 상세", [["매출 성장률", Math.min(fund.revenueGrowth || 0, 120), 120, "%"], ["EPS 성장률", Math.min(fund.epsGrowth || 0, 300), 300, "%"]], C.acc]].map(([title, items, col]) => <div key={title} style={card}><div style={{ fontSize: 12, fontWeight: 700, color: C.m, marginBottom: 12 }}>{title}</div>{items.map(([l, v, mx, u]) => <div key={l} style={{ marginBottom: 12 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, fontSize: 12 }}><span style={{ color: C.m }}>{l}</span><span style={{ fontWeight: 700, color: C.t }}>{v}{u}</span></div><div style={{ height: 6, background: C.s2, borderRadius: 4 }}><div style={{ height: "100%", width: Math.min(100, v / mx * 100) + "%", background: col, borderRadius: 4 }} /></div></div>)}</div>)}</div>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>{[["수익성 상세", [["매출총이익률", fund.grossMargin || 0, 100, "%"], ["순이익률", fund.netMargin || 0, 50, "%"], ["ROE", Math.min(fund.roe || 0, 150), 150, "%"]], C.g], ["성장성 상세", [["매출 성장률", Math.min(fund.revenueGrowth || 0, 120), 120, "%"], ["EPS 성장률", Math.min(fund.epsGrowth || 0, 300), 300, "%"]], C.acc]].map(([title, items, col]) => <div key={title} style={card}><div style={{ fontSize: 12, fontWeight: 700, color: C.m, marginBottom: 12 }}>{title}</div>{items.map(([l, v, mx, u]) => <div key={l} style={{ marginBottom: 12 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, fontSize: 12 }}><span style={{ color: C.m }}>{l}</span><span style={{ fontWeight: 700, color: C.t }}>{v}{u}</span></div><div style={{ height: 6, background: C.s2, borderRadius: 4 }}><div style={{ height: "100%", width: Math.min(100, v / mx * 100) + "%", background: col, borderRadius: 4 }} /></div></div>)}</div>)}</div>
             </div>
           )}
 
           {tab === "fin" && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10 }}>
               {[["P/E", d.pe || "—", "주가수익비율"], ["P/B", d.pb || "—", "주가순자산비율"], ["EPS", "$" + (d.eps || "—"), "주당순이익"], ["ROE", (fund.roe || 0) + "%", "자기자본이익률"], ["D/E", (fund.de || 0) + "x", "부채비율"], ["유동비율", (fund.currentRatio || 0) + "x", "단기 지급능력"], ["매출", fund.rev || "—", "연간 매출"], ["영업이익", fund.opInc || "—", "연간 영업이익"], ["매출총이익률", (fund.grossMargin || 0) + "%", "Gross Margin"], ["순이익률", (fund.netMargin || 0) + "%", "Net Margin"]].map(([k, v, desc]) => <div key={k} style={{ ...card, display: "flex", justifyContent: "space-between", alignItems: "center" }}><div><div style={{ fontSize: 11, color: C.m, fontWeight: 600 }}>{k}</div><div style={{ fontSize: 10, color: C.sub, marginTop: 1 }}>{desc}</div></div><div style={{ fontSize: 20, fontWeight: 800, color: C.t }}>{v}</div></div>)}
             </div>
           )}
@@ -538,7 +559,9 @@ function Dashboard({ user, onLogout }) {
           )}
 
           {tab === "market" && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {isMobile && <div style={{ background: C.sf, border: `1px solid ${C.b}`, borderRadius: 14, padding: "12px 14px" }}><ClockBar C={C} dark={dark} indices={indices} /></div>}
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div style={card}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: C.m, marginBottom: 4 }}>미국 주식지수</div>
@@ -581,6 +604,7 @@ function Dashboard({ user, onLogout }) {
                   })}
                 </div>
               </div>
+            </div>
             </div>
           )}
 
