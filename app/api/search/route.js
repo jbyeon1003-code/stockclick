@@ -2,56 +2,60 @@ export const runtime = "edge";
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
+function parseAutoc(data) {
+  return (data.ResultSet?.Result ?? [])
+    .filter(x => x.symbol && x.type !== "FUTURE" && x.type !== "CURRENCY")
+    .slice(0, 6)
+    .map(x => ({ ticker: x.symbol, name: x.name || x.symbol, exchange: x.exchDisp || x.exch || "" }));
+}
+
+function parseV1(data) {
+  return (data.quotes ?? [])
+    .filter(x => x.symbol && x.quoteType !== "FUTURE" && x.quoteType !== "CURRENCY")
+    .slice(0, 6)
+    .map(x => ({ ticker: x.symbol, name: x.longname || x.shortname || x.symbol, exchange: x.exchDisp || x.exchange || "" }));
+}
+
 export async function POST(request) {
   try {
     const { query } = await request.json();
     if (!query?.trim()) return Response.json([]);
+    const q = encodeURIComponent(query.trim());
 
-    // Primary: Yahoo Finance autoc (no auth required, very reliable)
-    try {
-      const res = await fetch(
-        `https://autoc.finance.yahoo.com/autoc?query=${encodeURIComponent(query)}&region=1&lang=en`,
-        { headers: { "User-Agent": UA }, cache: "no-store" }
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const items = (data.ResultSet?.Result || [])
-          .filter(q => q.symbol && q.type !== "FUTURE" && q.type !== "CURRENCY")
-          .slice(0, 6)
-          .map(q => ({
-            ticker: q.symbol,
-            name: q.name || q.symbol,
-            exchange: q.exchDisp || q.exch || "",
-          }));
-        if (items.length > 0) return Response.json(items);
-      }
-    } catch { /* fall through to secondary */ }
+    // Fire both endpoints simultaneously; return first non-empty result
+    const [autoc, v1] = await Promise.allSettled([
+      fetch(
+        `https://autoc.finance.yahoo.com/autoc?query=${q}&region=1&lang=en`,
+        {
+          headers: {
+            "User-Agent": UA,
+            "Accept": "application/json",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://finance.yahoo.com/",
+          },
+          cache: "no-store",
+        }
+      ).then(async r => (r.ok ? parseAutoc(await r.json()) : [])),
 
-    // Fallback: Yahoo Finance v1 search
-    const res2 = await fetch(
-      `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=8&newsCount=0&enableFuzzyQuery=false&lang=en-US`,
-      {
-        headers: {
-          "User-Agent": UA,
-          "Accept": "application/json",
-          "Accept-Language": "en-US,en;q=0.9",
-          "Referer": "https://finance.yahoo.com/",
-          "Origin": "https://finance.yahoo.com",
-        },
-        cache: "no-store",
-      }
-    );
-    if (!res2.ok) return Response.json([]);
-    const data2 = await res2.json();
-    const tickers = (data2.quotes || [])
-      .filter(q => q.symbol && q.quoteType !== "FUTURE" && q.quoteType !== "CURRENCY")
-      .slice(0, 6)
-      .map(q => ({
-        ticker: q.symbol,
-        name: q.longname || q.shortname || q.symbol,
-        exchange: q.exchDisp || q.exchange || "",
-      }));
-    return Response.json(tickers);
+      fetch(
+        `https://query2.finance.yahoo.com/v1/finance/search?q=${q}&quotesCount=8&newsCount=0&enableFuzzyQuery=false&lang=en-US`,
+        {
+          headers: {
+            "User-Agent": UA,
+            "Accept": "application/json",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://finance.yahoo.com/",
+            "Origin": "https://finance.yahoo.com",
+          },
+          cache: "no-store",
+        }
+      ).then(async r => (r.ok ? parseV1(await r.json()) : [])),
+    ]);
+
+    for (const res of [autoc, v1]) {
+      if (res.status === "fulfilled" && res.value?.length > 0) return Response.json(res.value);
+    }
+    return Response.json([]);
   } catch {
     return Response.json([]);
   }
