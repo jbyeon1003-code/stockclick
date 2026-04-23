@@ -382,7 +382,7 @@ function Dashboard({ user, onLogout }) {
   const getMkt = sym => { const q = mktData[sym], m = META[sym] || { name: sym, symbol: sym }; return q ? { ...m, price: q.price, change: q.change, changePct: q.changePct } : { ...m, price: null, change: 0, changePct: 0 }; };
   const indices = MKT_SYMS.indices.map(getMkt), commodities = MKT_SYMS.commodities.map(getMkt), bonds = MKT_SYMS.bonds.map(getMkt), rates = MKT_SYMS.rates.map(getMkt);
 
-  const TABS = [["overview", "개요"], ["rev", "매출성장"], ["fund", "펀더멘탈"], ["fin", "재무지표"], ["news", "뉴스"], ["cal", "일정"]];
+  const TABS = [["overview", "개요"], ["rev", "매출성장"], ["fund", "펀더멘탈"], ["fin", "재무지표"], ["news", "뉴스"], ["cal", "일정"], ["market", "시장현황"]];
   const card = { background: C.sf, border: `1px solid ${C.b}`, borderRadius: 14, padding: "16px 18px" };
   const scard = { background: C.sf, border: `1px solid ${C.b}`, borderRadius: 12, padding: "12px 14px" };
   const avatarColor = ["#3b82f6", "#10b981", "#f59e0b", "#f43f5e", "#8b5cf6", "#06b6d4"][user.charCodeAt(0) % 6];
@@ -447,6 +447,9 @@ function Dashboard({ user, onLogout }) {
             <div style={{ display: "flex", gap: 7, flexShrink: 0 }}>
               {dataLoading ? [0, 1, 2, 3].map(i => <Sk key={i} w={52} h={44} r={10} />) : [["시총", d.mktCap || "—"], ["P/E", d.pe || "—"], ["EPS", "$" + (d.eps || "—")], ["목표가", targetPrice ? "$" + targetPrice : "—"]].map(([k, v]) => <div key={k} style={{ background: C.s2, borderRadius: 10, padding: "7px 11px", textAlign: "center" }}><div style={{ fontSize: 9, color: C.m, fontWeight: 600, textTransform: "uppercase" }}>{k}</div><div style={{ fontSize: 12, fontWeight: 700, color: C.t, marginTop: 1 }}>{v}</div></div>)}
             </div>
+          </div>
+          <div style={{ borderTop: `1px solid ${C.b}`, paddingTop: 7, marginBottom: 2 }}>
+            <ClockBar C={C} dark={dark} indices={indices} />
           </div>
           <div style={{ display: "flex", alignItems: "center" }}>
             {TABS.map(([t, l]) => <button key={t} onClick={() => setTab(t)} style={{ padding: "8px 13px", fontSize: 12, fontWeight: tab === t ? 700 : 500, background: "transparent", border: "none", borderBottom: tab === t ? `2px solid ${C.acc}` : "2px solid transparent", color: tab === t ? C.acc : C.m, whiteSpace: "nowrap", cursor: "pointer" }}>{l}</button>)}
@@ -532,6 +535,53 @@ function Dashboard({ user, onLogout }) {
 
           {tab === "cal" && (
             <div style={card}><div style={{ fontSize: 12, fontWeight: 700, color: C.m, marginBottom: 14 }}>향후 주요 일정</div>{(fund.events || []).map((ev, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 0", borderTop: i > 0 ? `1px solid ${C.b}` : "none" }}><div style={{ background: dark ? "rgba(59,130,246,0.18)" : "rgba(59,130,246,0.08)", borderRadius: 10, padding: "8px 14px", textAlign: "center", minWidth: 58 }}><div style={{ fontSize: 16, fontWeight: 800, color: C.acc }}>{ev.date.slice(8)}</div><div style={{ fontSize: 9, color: C.acc, fontWeight: 600, marginTop: 1 }}>{ev.date.slice(5, 7)}월</div></div><div><div style={{ fontSize: 14, fontWeight: 700, color: C.t }}>{ev.event}</div><div style={{ fontSize: 11, color: C.m, marginTop: 2 }}>{ev.date}</div></div></div>)}</div>
+          )}
+
+          {tab === "market" && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={card}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: C.m, marginBottom: 4 }}>미국 주식지수</div>
+                  {indices.map(item => <MktRow key={item.symbol} item={item} C={C} />)}
+                </div>
+                <div style={card}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: C.m, marginBottom: 4 }}>원자재</div>
+                  {commodities.map(item => <MktRow key={item.symbol} item={item} C={C} />)}
+                </div>
+                <div style={card}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: C.m, marginBottom: 4 }}>미국 국채</div>
+                  {bonds.map(item => <MktRow key={item.symbol} item={item} C={C} />)}
+                </div>
+                <div style={card}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: C.m, marginBottom: 4 }}>기타 지표 (VIX · DXY · 원달러)</div>
+                  {rates.map(item => <MktRow key={item.symbol} item={item} C={C} />)}
+                </div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={card}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: C.m, marginBottom: 8 }}>공포 탐욕 지수 (Fear &amp; Greed)</div>
+                  <FGGauge value={FG.value} C={C} dark={dark} />
+                </div>
+                <div style={card}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: C.m, marginBottom: 6 }}>구성 지표</div>
+                  {FG.components.map((comp, i) => {
+                    const compCol = comp.value <= 25 ? C.r : comp.value <= 45 ? C.am : comp.value <= 55 ? C.am : C.g;
+                    return (
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: i > 0 ? `1px solid ${C.b}` : "none" }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: C.t }}>{comp.name}</div>
+                          <div style={{ fontSize: 10, color: compCol, fontWeight: 600 }}>{comp.signal}</div>
+                        </div>
+                        <div style={{ width: 70, height: 5, background: C.s2, borderRadius: 3, overflow: "hidden" }}>
+                          <div style={{ width: comp.value + "%", height: "100%", background: compCol, borderRadius: 3 }} />
+                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: compCol, minWidth: 28, textAlign: "right" }}>{comp.value}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
           )}
 
         </div>

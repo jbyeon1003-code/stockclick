@@ -1,20 +1,21 @@
 export const runtime = "edge";
 
+const HEADERS = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Accept": "application/json",
+  "Accept-Language": "en-US,en;q=0.9",
+  "Referer": "https://finance.yahoo.com/",
+  "Origin": "https://finance.yahoo.com",
+};
+
 export async function POST(request) {
   try {
     const { query } = await request.json();
     if (!query?.trim()) return Response.json([]);
 
     const res = await fetch(
-      `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=8&newsCount=0&enableFuzzyQuery=false`,
-      {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          "Accept": "application/json",
-          "Accept-Language": "en-US,en;q=0.9",
-        },
-        cache: "no-store",
-      }
+      `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=8&newsCount=0&enableFuzzyQuery=false&lang=en-US`,
+      { headers: HEADERS, cache: "no-store" }
     );
 
     if (!res.ok) return Response.json([]);
@@ -30,8 +31,7 @@ export async function POST(request) {
       }));
 
     return Response.json(tickers);
-  } catch (err) {
-    console.error("[search]", err.message);
+  } catch {
     return Response.json([]);
   }
 }
