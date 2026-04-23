@@ -1,3 +1,5 @@
+export const runtime = "edge";
+
 const CFG = {
   "1W": { days: 7,   iv: "1d" },
   "1M": { days: 30,  iv: "1d" },
