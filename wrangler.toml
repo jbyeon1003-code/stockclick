@@ -1,8 +1,0 @@
-name = "us-stock-dashboard"
-pages_build_output_dir = ".vercel/output/static"
-
-[vars]
-NODE_VERSION = "20"
-
-[build]
-command = "npm run build"
