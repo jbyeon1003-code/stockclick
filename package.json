@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "pages:build": "opennextjs-cloudflare build && node -e \"const fs=require('fs');fs.copyFileSync('.open-next/worker.js','.open-next/assets/_worker.js');\"",
+    "pages:build": "opennextjs-cloudflare build && node scripts/prepare-pages.js",
     "start": "next start"
   },
   "dependencies": {
