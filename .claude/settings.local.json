@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(mkdir -p \"C:\\\\Users\\\\jbyeon\\\\Desktop\\\\Vibe_Coding\\\\All4Stock\\\\us-stock-dashboard\\\\app\\\\api\\\\quotes\")",
+      "Bash(mkdir -p \"C:\\\\Users\\\\jbyeon\\\\Desktop\\\\Vibe_Coding\\\\All4Stock\\\\us-stock-dashboard\\\\app\\\\api\\\\chart\")",
+      "Bash(mkdir -p \"C:\\\\Users\\\\jbyeon\\\\Desktop\\\\Vibe_Coding\\\\All4Stock\\\\us-stock-dashboard\\\\app\\\\api\\\\search\")",
+      "Bash(npm run *)"
+    ]
+  }
+}
