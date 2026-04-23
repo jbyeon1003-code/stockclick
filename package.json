@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "pages:build": "opennextjs-cloudflare build && node scripts/prepare-pages.js",
+    "pages:build": "npx @cloudflare/next-on-pages",
     "start": "next start"
   },
   "dependencies": {
@@ -14,7 +14,7 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
-    "@opennextjs/cloudflare": "latest",
+    "@cloudflare/next-on-pages": "latest",
     "wrangler": "latest"
   }
 }

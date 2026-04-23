@@ -1,3 +1,5 @@
+export const runtime = "edge";
+
 async function fetchOne(sym) {
   const res = await fetch(
     `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=1d&interval=1d`,
