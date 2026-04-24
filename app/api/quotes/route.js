@@ -8,16 +8,21 @@ const BASE = {
   "Referer": "https://finance.yahoo.com/",
 };
 
-// Get Yahoo Finance crumb+cookie (needed for v7/v11 endpoints)
+// Get Yahoo Finance crumb+cookie
+// - fc.yahoo.com is deprecated (404); use finance.yahoo.com/quote/AAPL for cookie
+// - query2 /v1/test/getcrumb returns 406; query1 works correctly
 async function getAuth() {
   try {
-    const r = await fetch("https://fc.yahoo.com", {
-      headers: { "User-Agent": UA, "Accept": "text/html,*/*", "Accept-Language": "en-US,en;q=0.9" },
+    const r = await fetch("https://finance.yahoo.com/quote/AAPL", {
+      headers: {
+        "User-Agent": UA,
+        "Accept": "text/html,application/xhtml+xml,*/*",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
       redirect: "follow",
     });
     const sc = r.headers.get("set-cookie");
     if (!sc) return null;
-    // Parse "Name=Value; attrs, Name2=Value2; attrs" → "Name=Value; Name2=Value2"
     const cookieStr = sc
       .split(/,(?=\s*[A-Za-z_][A-Za-z0-9_-]*\s*=)/)
       .map(c => c.trim().split(";")[0])
@@ -25,12 +30,11 @@ async function getAuth() {
       .join("; ");
     if (!cookieStr) return null;
 
-    const cr = await fetch("https://query2.finance.yahoo.com/v1/test/getcrumb", {
+    const cr = await fetch("https://query1.finance.yahoo.com/v1/test/getcrumb", {
       headers: { ...BASE, Cookie: cookieStr },
     });
     if (!cr.ok) return null;
     const crumb = (await cr.text()).trim();
-    // Crumb is a short alphanumeric string; reject HTML/JSON responses
     if (!crumb || crumb.length > 50 || crumb.includes("<") || crumb.includes("{")) return null;
     return { crumb, cookieStr };
   } catch {
@@ -40,23 +44,27 @@ async function getAuth() {
 
 // Fetch one symbol via v8 chart (no crumb required)
 async function chartQuote(sym) {
-  try {
-    const r = await fetch(
-      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=1d&includePrePost=false`,
-      { headers: BASE, cache: "no-store" }
-    );
-    if (!r.ok) return null;
-    const d = await r.json();
-    const meta = d.chart?.result?.[0]?.meta;
-    if (!meta?.regularMarketPrice) return null;
-    const prev = meta.chartPreviousClose ?? meta.previousClose ?? meta.regularMarketPrice;
-    const price = meta.regularMarketPrice;
-    const change = +(price - prev).toFixed(4);
-    const changePct = prev ? +((change / prev) * 100).toFixed(4) : 0;
-    return { symbol: sym, price, change, changePct, mktCap: meta.marketCap ?? null };
-  } catch {
-    return null;
+  const urls = [
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=1d&includePrePost=false`,
+    `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=1d&includePrePost=false`,
+  ];
+  for (const url of urls) {
+    try {
+      const r = await fetch(url, { headers: BASE, cache: "no-store" });
+      if (!r.ok) continue;
+      const d = await r.json();
+      const meta = d.chart?.result?.[0]?.meta;
+      if (!meta?.regularMarketPrice) continue;
+      const prev = meta.chartPreviousClose ?? meta.previousClose ?? meta.regularMarketPrice;
+      const price = meta.regularMarketPrice;
+      const change = +(price - prev).toFixed(4);
+      const changePct = prev ? +((change / prev) * 100).toFixed(4) : 0;
+      return { symbol: sym, price, change, changePct, mktCap: meta.marketCap ?? null };
+    } catch {
+      continue;
+    }
   }
+  return null;
 }
 
 function toQuote(q) {
@@ -79,19 +87,23 @@ export async function POST(request) {
 
     const joined = symbols.map(s => encodeURIComponent(s)).join(",");
 
-    // Run auth + v8 chart queries in parallel so v8 results are ready as fallback
+    // Run auth + v8 chart queries in parallel
     const [auth, v8Settled] = await Promise.all([
       getAuth(),
       Promise.allSettled(symbols.map(chartQuote)),
     ]);
 
-    // Attempt v7 bulk (richer: P/E, EPS, marketCap) — requires crumb but try either way
+    // Attempt v7 bulk (richer: P/E, EPS, marketCap) — requires crumb
     try {
       const crumbQ = auth ? `&crumb=${encodeURIComponent(auth.crumb)}` : "";
       const extraH = auth?.cookieStr ? { Cookie: auth.cookieStr } : {};
-      const url = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${joined}&lang=en-US&region=US&fields=regularMarketPrice,regularMarketChange,regularMarketChangePercent,marketCap,trailingPE,epsTrailingTwelveMonths${crumbQ}`;
-      const r = await fetch(url, { headers: { ...BASE, ...extraH }, cache: "no-store" });
-      if (r.ok) {
+      const v7Urls = [
+        `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${joined}&lang=en-US&region=US&fields=regularMarketPrice,regularMarketChange,regularMarketChangePercent,marketCap,trailingPE,epsTrailingTwelveMonths${crumbQ}`,
+        `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${joined}&lang=en-US&region=US&fields=regularMarketPrice,regularMarketChange,regularMarketChangePercent,marketCap,trailingPE,epsTrailingTwelveMonths${crumbQ}`,
+      ];
+      for (const url of v7Urls) {
+        const r = await fetch(url, { headers: { ...BASE, ...extraH }, cache: "no-store" });
+        if (!r.ok) continue;
         const d = await r.json();
         const list = d.quoteResponse?.result ?? [];
         if (list.length > 0) {

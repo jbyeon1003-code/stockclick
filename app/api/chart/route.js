@@ -20,19 +20,28 @@ export async function POST(request) {
   try {
     const { symbol, period } = await request.json();
     const cfg = CFG[period] || CFG["3M"];
+    const sym = encodeURIComponent(symbol);
 
-    const res = await fetch(
-      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${cfg.range}&interval=${cfg.iv}&includePrePost=false`,
-      { headers: HEADERS, cache: "no-store" }
-    );
+    // Try query1 then query2 as fallback
+    const urls = [
+      `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?range=${cfg.range}&interval=${cfg.iv}&includePrePost=false`,
+      `https://query2.finance.yahoo.com/v8/finance/chart/${sym}?range=${cfg.range}&interval=${cfg.iv}&includePrePost=false`,
+    ];
 
-    if (!res.ok) return Response.json({ prices: [] });
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, { headers: HEADERS, cache: "no-store" });
+        if (!res.ok) continue;
+        const data = await res.json();
+        const closes = data.chart?.result?.[0]?.indicators?.quote?.[0]?.close ?? [];
+        const prices = closes.filter(v => v != null).map(v => +v.toFixed(2));
+        if (prices.length > 0) return Response.json({ prices });
+      } catch {
+        continue;
+      }
+    }
 
-    const data = await res.json();
-    const closes = data.chart?.result?.[0]?.indicators?.quote?.[0]?.close ?? [];
-    const prices = closes.filter(v => v != null).map(v => +v.toFixed(2));
-
-    return Response.json({ prices });
+    return Response.json({ prices: [] });
   } catch {
     return Response.json({ prices: [] });
   }
