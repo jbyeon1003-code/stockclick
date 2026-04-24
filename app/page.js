@@ -395,7 +395,7 @@ function Dashboard({ user, onLogout }) {
   const getMkt = sym => { const q = mktData[sym], m = META[sym] || { name: sym, symbol: sym }; return q ? { ...m, price: q.price, change: q.change, changePct: q.changePct } : { ...m, price: null, change: 0, changePct: 0 }; };
   const indices = MKT_SYMS.indices.map(getMkt), commodities = MKT_SYMS.commodities.map(getMkt), bonds = MKT_SYMS.bonds.map(getMkt), rates = MKT_SYMS.rates.map(getMkt);
 
-  const TABS = [["market", "시장현황"], ["overview", "개요"], ["rev", "매출성장"], ["fund", "펀더멘탈"], ["fin", "재무지표"], ["news", "뉴스"], ["cal", "일정"]];
+  const TABS = [["market", "시장현황"], ["overview", "개요"], ["fund", "펀더멘탈"], ["fin", "재무지표"], ["news", "뉴스"], ["cal", "일정"]];
   const card = { background: C.sf, border: `1px solid ${C.b}`, borderRadius: 14, padding: "16px 18px" };
   const scard = { background: C.sf, border: `1px solid ${C.b}`, borderRadius: 12, padding: "12px 14px" };
   const avatarColor = ["#3b82f6", "#10b981", "#f59e0b", "#f43f5e", "#8b5cf6", "#06b6d4"][user.charCodeAt(0) % 6];
@@ -510,13 +510,6 @@ function Dashboard({ user, onLogout }) {
             </div>
           )}
 
-          {tab === "rev" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <div style={card}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}><div style={{ fontSize: 12, fontWeight: 700, color: C.m }}>분기별 매출 & YoY 성장률</div><div style={{ display: "flex", gap: 14, fontSize: 11, color: C.m }}><span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: dark ? "#60a5fa" : "#3b82f6", display: "inline-block" }} />매출</span><span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 14, height: 2, background: C.g, display: "inline-block" }} />YoY</span></div></div><RevCanvas data={fund.qrev || []} dark={dark} /></div>
-              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: 10 }}>{(fund.qrev || []).slice(-4).map((q, i) => <div key={i} style={card}><div style={{ fontSize: 10, color: C.m, fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>{q.q}</div><div style={{ fontSize: 18, fontWeight: 800, color: C.t }}>${q.rev}B</div><div style={{ marginTop: 4, display: "inline-flex", padding: "2px 8px", borderRadius: 20, background: q.g >= 0 ? (dark ? "rgba(16,185,129,0.15)" : "rgba(16,185,129,0.1)") : (dark ? "rgba(244,63,94,0.15)" : "rgba(244,63,94,0.1)"), fontSize: 11, fontWeight: 700, color: q.g >= 0 ? C.g : C.r }}>{q.g > 0 ? "+" : ""}{q.g}% YoY</div></div>)}</div>
-            </div>
-          )}
-
           {tab === "fund" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "220px 1fr", gap: 12 }}>
@@ -528,8 +521,13 @@ function Dashboard({ user, onLogout }) {
           )}
 
           {tab === "fin" && (
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={card}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}><div style={{ fontSize: 12, fontWeight: 700, color: C.m }}>분기별 매출 & YoY 성장률</div><div style={{ display: "flex", gap: 14, fontSize: 11, color: C.m }}><span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: dark ? "#60a5fa" : "#3b82f6", display: "inline-block" }} />매출</span><span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 14, height: 2, background: C.g, display: "inline-block" }} />YoY</span></div></div><RevCanvas data={fund.qrev || []} dark={dark} /></div>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: 10 }}>{(fund.qrev || []).slice(-4).map((q, i) => <div key={i} style={card}><div style={{ fontSize: 10, color: C.m, fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>{q.q}</div><div style={{ fontSize: 18, fontWeight: 800, color: C.t }}>${q.rev}B</div><div style={{ marginTop: 4, display: "inline-flex", padding: "2px 8px", borderRadius: 20, background: q.g >= 0 ? (dark ? "rgba(16,185,129,0.15)" : "rgba(16,185,129,0.1)") : (dark ? "rgba(244,63,94,0.15)" : "rgba(244,63,94,0.1)"), fontSize: 11, fontWeight: 700, color: q.g >= 0 ? C.g : C.r }}>{q.g > 0 ? "+" : ""}{q.g}% YoY</div></div>)}</div>
+              <div style={{ borderTop: `1px solid ${C.b}`, margin: "4px 0" }} />
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10 }}>
               {[["P/E", d.pe || "—", "주가수익비율"], ["P/B", d.pb || "—", "주가순자산비율"], ["EPS", "$" + (d.eps || "—"), "주당순이익"], ["ROE", (fund.roe || 0) + "%", "자기자본이익률"], ["D/E", (fund.de || 0) + "x", "부채비율"], ["유동비율", (fund.currentRatio || 0) + "x", "단기 지급능력"], ["매출", fund.rev || "—", "연간 매출"], ["영업이익", fund.opInc || "—", "연간 영업이익"], ["매출총이익률", (fund.grossMargin || 0) + "%", "Gross Margin"], ["순이익률", (fund.netMargin || 0) + "%", "Net Margin"]].map(([k, v, desc]) => <div key={k} style={{ ...card, display: "flex", justifyContent: "space-between", alignItems: "center" }}><div><div style={{ fontSize: 11, color: C.m, fontWeight: 600 }}>{k}</div><div style={{ fontSize: 10, color: C.sub, marginTop: 1 }}>{desc}</div></div><div style={{ fontSize: 20, fontWeight: 800, color: C.t }}>{v}</div></div>)}
+              </div>
             </div>
           )}
 
