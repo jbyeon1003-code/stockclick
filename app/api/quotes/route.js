@@ -75,7 +75,7 @@ async function fetchStooqQuote(sym) {
   if (!stooqSym) return null;
   try {
     const url = `https://stooq.com/q/d/l/?s=${stooqSym}&i=d`;
-    const r = await fetch(url, { cache: "no-store" });
+    const r = await fetch(url);
     if (!r.ok) return null;
     const rows = parseCsvHistory(await r.text());
     if (rows.length < 2) return null;
@@ -91,7 +91,7 @@ async function fetchFinnhubQuotes(key) {
   const out = {};
   await Promise.all(US_STOCKS.map(async sym => {
     try {
-      const r = await fetch(`https://finnhub.io/api/v1/quote?symbol=${sym}&token=${key}`, { cache: "no-store" });
+      const r = await fetch(`https://finnhub.io/api/v1/quote?symbol=${sym}&token=${key}`);
       if (!r.ok) return;
       const d = await r.json();
       if (!d.c || d.c === 0 || !d.pc) return;
@@ -106,7 +106,7 @@ async function fetchFinnhubQuotes(key) {
 
 async function fetchVIX() {
   try {
-    const r = await fetch("https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv", { cache: "no-store" });
+    const r = await fetch("https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv");
     if (!r.ok) return null;
     const rows = parseCsvHistory(await r.text());
     if (rows.length < 2) return null;
@@ -121,8 +121,7 @@ async function fetchVIX() {
 async function fetchBTC() {
   try {
     const r = await fetch(
-      "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true",
-      { cache: "no-store" }
+      "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true"
     );
     if (!r.ok) return null;
     const d = await r.json();
@@ -143,7 +142,7 @@ export async function POST() {
   if (tdKey) {
     try {
       const tdSyms = ALL_SYMS.map(s => TD_MAP[s] || s).join(",");
-      const r = await fetch(`https://api.twelvedata.com/quote?symbol=${tdSyms}&apikey=${tdKey}`, { cache: "no-store" });
+      const r = await fetch(`https://api.twelvedata.com/quote?symbol=${tdSyms}&apikey=${tdKey}`);
       if (r.ok) {
         const raw = await r.json();
         if (raw.status !== "error") {

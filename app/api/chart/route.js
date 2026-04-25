@@ -87,7 +87,7 @@ async function fetchStooqChart(symbol, period) {
     const days = PERIOD_DAYS[period] || 95;
     const from = cutoff(days);
     const url = `https://stooq.com/q/d/l/?s=${stooqSym}&d1=${from.replace(/-/g, "")}&i=d`;
-    const r = await fetch(url, { cache: "no-store" });
+    const r = await fetch(url);
     if (!r.ok) return null;
     const rows = parseCsvHistory(await r.text());
     if (rows.length === 0) return null;
@@ -99,8 +99,7 @@ async function fetchCoinGeckoChart(period) {
   try {
     const days = CG_DAYS[period] || 90;
     const r = await fetch(
-      `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=${days}&interval=daily`,
-      { cache: "no-store" }
+      `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=${days}&interval=daily`
     );
     if (!r.ok) return null;
     const d = await r.json();
@@ -124,7 +123,7 @@ export async function POST(req) {
     const tdSym = TD_MAP[symbol] || symbol;
     try {
       const url = `https://api.twelvedata.com/time_series?symbol=${tdSym}&interval=${cfg.interval}&outputsize=${cfg.outputsize}&apikey=${tdKey}`;
-      const r = await fetch(url, { cache: "no-store" });
+      const r = await fetch(url);
       if (r.ok) {
         const d = await r.json();
         if (d.status !== "error" && d.values?.length) {

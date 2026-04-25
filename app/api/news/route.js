@@ -50,7 +50,7 @@ export async function POST(request) {
     ];
     for (const url of yfUrls) {
       try {
-        const res = await fetch(url, { headers: YF_HEADERS, cache: "no-store" });
+        const res = await fetch(url, { headers: YF_HEADERS });
         if (!res.ok) continue;
         const data = await res.json();
         const news = (data.news || []).slice(0, 6).map(n => ({
