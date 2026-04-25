@@ -75,6 +75,14 @@ async function apiNews(sym) {
   } catch { return null; }
 }
 
+async function apiFearGreed() {
+  try {
+    const res = await fetch("/api/feargreed");
+    if (!res.ok) return null;
+    return await res.json();
+  } catch { return null; }
+}
+
 /* ── Market Clock ─────────────────────────────────────────── */
 function useMarketClock() {
   const [now, setNow] = useState(() => new Date());
@@ -164,7 +172,8 @@ function RadarSVG({ scores, dark }) {
   );
 }
 
-function FGGauge({ value, C, dark }) {
+function FGGauge({ data, C, dark }) {
+  const value = data.value;
   const gl = v => v <= 25 ? "극단적 공포" : v <= 45 ? "공포" : v <= 55 ? "중립" : v <= 75 ? "탐욕" : "극단적 탐욕";
   const gc = v => v <= 25 ? "#f43f5e" : v <= 45 ? "#f97316" : v <= 55 ? "#f59e0b" : v <= 75 ? "#84cc16" : "#10b981";
   const col = gc(value), toR = d => d * Math.PI / 180, cx = 100, cy = 88, r = 68;
@@ -183,8 +192,8 @@ function FGGauge({ value, C, dark }) {
         {["극단공포", "공포", "중립", "탐욕", "극단탐욕"].map((l, i) => { const a = toR(-135 + i * 67.5); return <text key={i} x={cx + (r + 15) * Math.cos(a)} y={cy + (r + 15) * Math.sin(a)} textAnchor="middle" fontSize={7} fill={tc} dominantBaseline="middle">{l}</text>; })}
       </svg>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 5, width: "100%" }}>
-        {[["어제", FG.prev], ["1주전", FG.weekAgo], ["1달전", FG.monthAgo], ["1년전", FG.yearAgo]].map(([l, v]) => (
-          <div key={l} style={{ textAlign: "center", padding: "5px 2px", borderRadius: 8, background: C.s2 }}>
+        {[["어제", data.prev], ["1주전", data.weekAgo], ["1달전", data.monthAgo], ["1년전", data.yearAgo]].map(([l, v]) => (
+          v != null && <div key={l} style={{ textAlign: "center", padding: "5px 2px", borderRadius: 8, background: C.s2 }}>
             <div style={{ fontSize: 9, color: C.m, marginBottom: 1 }}>{l}</div>
             <div style={{ fontSize: 13, fontWeight: 800, color: gc(v) }}>{v}</div>
             <div style={{ fontSize: 7, color: gc(v), fontWeight: 600 }}>{gl(v)}</div>
@@ -297,6 +306,7 @@ function Dashboard({ user, onLogout }) {
   const [focused, setFocused] = useState(false);
   const [quotes, setQuotes] = useState({});
   const [mktData, setMktData] = useState({});
+  const [fgData, setFgData] = useState(FG);
   const [chartData, setChartData] = useState([]);
   const [chartLoading, setChartLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
@@ -352,6 +362,13 @@ function Dashboard({ user, onLogout }) {
     setNewsLoading(true);
     apiNews(selected).then(d => { setNewsData(d); setNewsLoading(false); });
   }, [selected]);
+
+  useEffect(() => {
+    const loadFG = () => apiFearGreed().then(d => { if (d) setFgData(f => ({ ...f, ...d })); });
+    loadFG();
+    const t = setInterval(loadFG, 300000);
+    return () => clearInterval(t);
+  }, []);
 
   const handleSearch = v => {
     setSearch(v); clearTimeout(searchTimer.current);
@@ -582,11 +599,11 @@ function Dashboard({ user, onLogout }) {
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div style={card}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: C.m, marginBottom: 8 }}>공포 탐욕 지수 (Fear &amp; Greed)</div>
-                  <FGGauge value={FG.value} C={C} dark={dark} />
+                  <FGGauge data={fgData} C={C} dark={dark} />
                 </div>
                 <div style={card}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: C.m, marginBottom: 6 }}>구성 지표</div>
-                  {FG.components.map((comp, i) => {
+                  {fgData.components.map((comp, i) => {
                     const compCol = comp.value <= 25 ? C.r : comp.value <= 45 ? C.am : comp.value <= 55 ? C.am : C.g;
                     return (
                       <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: i > 0 ? `1px solid ${C.b}` : "none" }}>
