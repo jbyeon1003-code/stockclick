@@ -53,7 +53,8 @@ async function apiChart(sym, period) {
     const res = await fetch("/api/chart", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ symbol: sym, period }) });
     if (!res.ok) return [];
     const data = await res.json();
-    return data.prices || [];
+    const prices = data.prices || [];
+    return prices.map(p => typeof p === "object" ? p.close : p);
   } catch { return []; }
 }
 
