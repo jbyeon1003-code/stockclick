@@ -176,13 +176,13 @@ function FGGauge({ data, C, dark }) {
   const value = data.value;
   const gl = v => v <= 25 ? "극단적 공포" : v <= 45 ? "공포" : v <= 55 ? "중립" : v <= 75 ? "탐욕" : "극단적 탐욕";
   const gc = v => v <= 25 ? "#f43f5e" : v <= 45 ? "#f97316" : v <= 55 ? "#f59e0b" : v <= 75 ? "#84cc16" : "#10b981";
-  const col = gc(value), toR = d => d * Math.PI / 180, cx = 100, cy = 88, r = 68;
+  const col = gc(value), toR = d => d * Math.PI / 180, cx = 100, cy = 78, r = 68;
   const arc = (a1, a2) => { const x1 = cx + r * Math.cos(toR(a1)), y1 = cy + r * Math.sin(toR(a1)), x2 = cx + r * Math.cos(toR(a2)), y2 = cy + r * Math.sin(toR(a2)); return `M${x1} ${y1}A${r} ${r} 0 ${Math.abs(a2 - a1) > 180 ? 1 : 0} 1 ${x2} ${y2}`; };
   const fe = -135 + value / 100 * 270, nx = cx + (r - 10) * Math.cos(toR(fe)), ny = cy + (r - 10) * Math.sin(toR(fe));
   const tc = dark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)";
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-      <svg viewBox="0 0 200 120" width="100%" height="120">
+      <svg viewBox="0 0 200 130" width="100%" height="130">
         {[[-135, -81, "#f43f5e"], [-81, -27, "#f97316"], [-27, 27, "#f59e0b"], [27, 81, "#84cc16"], [81, 135, "#10b981"]].map(([a1, a2, c], i) => <path key={i} d={arc(a1, a2)} fill="none" stroke={c} strokeWidth={11} strokeLinecap="butt" opacity={0.22} />)}
         <path d={arc(-135, fe)} fill="none" stroke={col} strokeWidth={11} strokeLinecap="round" />
         <line x1={cx} y1={cy} x2={nx} y2={ny} stroke={dark ? "#eee" : "#1e293b"} strokeWidth={2.5} strokeLinecap="round" />

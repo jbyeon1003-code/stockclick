@@ -16,14 +16,33 @@ const YF_HDR = {
   "Referer": "https://finance.yahoo.com/",
 };
 
-function parseYFv8(data) {
-  const closes = data.chart?.result?.[0]?.indicators?.quote?.[0]?.close ?? [];
-  const prices = closes.filter(v => v != null).map(v => +v.toFixed(2));
-  return prices.length > 0 ? prices : null;
+// Stooq symbol mapping
+const STOOQ_MAP = {
+  "^GSPC": "^spx", "^IXIC": "^ndq", "^DJI": "^dji", "^VIX": "^vix",
+  "GC=F": "gc.f", "CL=F": "cl.f", "SI=F": "si.f", "NG=F": "ng.f", "HG=F": "hg.f",
+  "^TNX": "10us.b", "^TYX": "30us.b", "^IRX": "13wk.b",
+  "BTC-USD": "btc.v", "USDKRW=X": "usdkrw",
+  "DX-Y.NYB": "dx.f",
+};
+
+const US_STOCKS = new Set(["AAPL","MSFT","GOOGL","AMZN","META","NVDA","TSLA","NFLX","ORCL","AMD",
+  "INTC","PYPL","CRM","ADBE","QCOM","TXN","AVGO","SBUX","COST","WMT","JPM","BAC","GS","MS","V","MA"]);
+
+function stooqSym(s) {
+  if (STOOQ_MAP[s]) return STOOQ_MAP[s];
+  const u = s.toUpperCase();
+  if (US_STOCKS.has(u) || (!s.includes("^") && !s.includes("=") && !s.includes("-") && !s.includes("."))) {
+    return s.toLowerCase() + ".us";
+  }
+  return s.toLowerCase();
 }
 
-function parseYFv7(data) {
-  const closes = data.spark?.result?.[0]?.response?.[0]?.indicators?.quote?.[0]?.close ?? [];
+function fmtDate(d) {
+  return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}`;
+}
+
+function parseYF(data) {
+  const closes = data.chart?.result?.[0]?.indicators?.quote?.[0]?.close ?? [];
   const prices = closes.filter(v => v != null).map(v => +v.toFixed(2));
   return prices.length > 0 ? prices : null;
 }
@@ -40,21 +59,30 @@ export async function POST(request) {
         const url = `https://${base}.finance.yahoo.com/v8/finance/chart/${sym}?range=${cfg.range}&interval=${cfg.iv}&includePrePost=false`;
         const res = await fetch(url, { headers: YF_HDR, cache: "no-store" });
         if (!res.ok) continue;
-        const prices = parseYFv8(await res.json());
+        const prices = parseYF(await res.json());
         if (prices) return Response.json({ prices });
       } catch { continue; }
     }
 
-    // 2) Yahoo Finance v7 spark (query1 then query2)
-    for (const base of ["query1", "query2"]) {
-      try {
-        const url = `https://${base}.finance.yahoo.com/v7/finance/spark?symbols=${sym}&range=${cfg.range}&interval=${cfg.iv}`;
-        const res = await fetch(url, { headers: YF_HDR, cache: "no-store" });
-        if (!res.ok) continue;
-        const prices = parseYFv7(await res.json());
-        if (prices) return Response.json({ prices });
-      } catch { continue; }
-    }
+    // 2) Stooq CSV fallback
+    try {
+      const ss = stooqSym(symbol);
+      const today = new Date();
+      const from = new Date(today.getTime() - cfg.days * 86400000);
+      const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(ss)}&d1=${fmtDate(from)}&d2=${fmtDate(today)}&i=d`;
+      const res = await fetch(url, { headers: { "User-Agent": YF_HDR["User-Agent"] }, cache: "no-store" });
+      if (res.ok) {
+        const csv = await res.text();
+        if (!csv.includes("No data") && !csv.includes("<html")) {
+          const prices = csv.trim().split("\n").slice(1)
+            .filter(l => l.trim())
+            .map(l => parseFloat(l.split(",")[4]))
+            .filter(v => !isNaN(v))
+            .map(v => +v.toFixed(2));
+          if (prices.length > 0) return Response.json({ prices });
+        }
+      }
+    } catch {}
 
     return Response.json({ prices: [] });
   } catch {

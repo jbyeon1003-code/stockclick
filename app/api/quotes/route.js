@@ -1,49 +1,67 @@
 export const runtime = "edge";
 
-const SYMBOLS = ["AAPL","MSFT","GOOGL","AMZN","META","NVDA","TSLA","NFLX","ORCL","AMD","^GSPC","^DJI","^IXIC","^VIX","GC=F","CL=F","SI=F","NG=F","HG=F","BTC-USD","^IRX","^TNX","^TYX","DX-Y.NYB","USDKRW=X"];
+const US_STOCKS = new Set(["AAPL","MSFT","GOOGL","AMZN","META","NVDA","TSLA","NFLX","ORCL","AMD"]);
 
-const MAP = {
-  "GC=F": "OANDA:XAU_USD",
-  "CL=F": "OANDA:BRENT_USD",
-  "SI=F": "OANDA:XAG_USD",
-  "BTC-USD": "BINANCE:BTCUSDT",
-  "USDKRW=X": "OANDA:USD_KRW",
+const YF_HDR = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Accept": "application/json",
+  "Accept-Language": "en-US,en;q=0.9",
+  "Referer": "https://finance.yahoo.com/",
 };
 
-export async function POST() {
-  const key = process.env.FINNHUB_API_KEY;
-  if (!key) return Response.json({});
+const ALL_SYMS = [
+  "AAPL","MSFT","GOOGL","AMZN","META","NVDA","TSLA","NFLX","ORCL","AMD",
+  "^GSPC","^DJI","^IXIC","^VIX",
+  "GC=F","CL=F","SI=F","NG=F","HG=F",
+  "^IRX","^TNX","^TYX",
+  "DX-Y.NYB","USDKRW=X","BTC-USD",
+];
 
-  const results = await Promise.all(SYMBOLS.map(async sym => {
-    const fSym = MAP.hasOwnProperty(sym) ? MAP[sym] : sym;
-    if (!fSym) return [sym, null];
+async function fetchFinnhub(sym, key) {
+  try {
+    const url = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(sym)}&token=${key}`;
+    const r = await fetch(url);
+    if (!r.ok) return null;
+    const d = await r.json();
+    if (!d.c) return null;
+    return { price: d.c, change: +(d.d || 0).toFixed(2), changePct: +(d.dp || 0).toFixed(2) };
+  } catch { return null; }
+}
 
-    let endpoint;
-    if (fSym.includes("OANDA:")) {
-      endpoint = `https://finnhub.io/api/v1/forex/candle?symbol=${fSym}&resolution=D&count=2&token=${key}`;
-    } else if (fSym.includes("BINANCE:")) {
-      endpoint = `https://finnhub.io/api/v1/crypto/candle?symbol=${fSym}&resolution=D&count=2&token=${key}`;
-    } else {
-      endpoint = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(fSym)}&token=${key}`;
-    }
-
+async function fetchYF(sym) {
+  for (const base of ["query1", "query2"]) {
     try {
-      const r = await fetch(endpoint);
+      const url = `https://${base}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=5d&interval=1d&includePrePost=false`;
+      const r = await fetch(url, { headers: YF_HDR, cache: "no-store" });
+      if (!r.ok) continue;
       const d = await r.json();
-      if (fSym.includes("OANDA:") || fSym.includes("BINANCE:")) {
-        if (!d.c || d.c.length < 2) return [sym, null];
-        const price = d.c[d.c.length - 1];
-        const prev = d.c[d.c.length - 2];
+      const closes = (d.chart?.result?.[0]?.indicators?.quote?.[0]?.close ?? []).filter(v => v != null);
+      if (closes.length >= 2) {
+        const price = closes[closes.length - 1];
+        const prev = closes[closes.length - 2];
         const change = +(price - prev).toFixed(2);
         const changePct = +(change / prev * 100).toFixed(2);
-        return [sym, { price, change, changePct }];
-      } else {
-        if (!d.c) return [sym, null];
-        return [sym, { price: d.c, change: +(d.d || 0).toFixed(2), changePct: +(d.dp || 0).toFixed(2) }];
+        return { price, change, changePct };
       }
-    } catch {
-      return [sym, null];
+    } catch { continue; }
+  }
+  return null;
+}
+
+export async function POST() {
+  const rawKey = process.env.FINNHUB_API_KEY || "";
+  // Trim to 20 chars in case key was accidentally doubled
+  const key = rawKey.slice(0, 20);
+
+  const results = await Promise.all(ALL_SYMS.map(async sym => {
+    let data = null;
+    if (key && US_STOCKS.has(sym)) {
+      data = await fetchFinnhub(sym, key);
     }
+    if (!data) {
+      data = await fetchYF(sym);
+    }
+    return [sym, data];
   }));
 
   const out = {};
