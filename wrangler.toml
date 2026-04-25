@@ -3,3 +3,9 @@ compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
 pages_build_output_dir = ".vercel/output/static"
+
+# Finnhub API Key
+# Cloudflare Pages 배포 시: Pages 대시보드 → Settings → Environment variables 에 추가
+# 로컬 개발 시: .env.local.example 파일을 .env.local 로 복사 후 실제 키 입력
+# [vars]
+# FINNHUB_API_KEY = ""  # 실제 키는 Cloudflare 대시보드 Secrets 에 설정
