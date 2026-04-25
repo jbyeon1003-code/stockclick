@@ -1,90 +1,58 @@
 export const runtime = "edge";
 
+// period → Twelve Data params
 const CFG = {
-  "1W": { range: "5d",  iv: "1d",  days: 7   },
-  "1M": { range: "1mo", iv: "1d",  days: 31  },
-  "3M": { range: "3mo", iv: "1d",  days: 92  },
-  "6M": { range: "6mo", iv: "1wk", days: 183 },
-  "1Y": { range: "1y",  iv: "1wk", days: 365 },
-  "2Y": { range: "2y",  iv: "1wk", days: 730 },
+  "1W": { interval: "1day",  outputsize: 8   },
+  "1M": { interval: "1day",  outputsize: 35  },
+  "3M": { interval: "1day",  outputsize: 95  },
+  "6M": { interval: "1week", outputsize: 28  },
+  "1Y": { interval: "1week", outputsize: 55  },
+  "2Y": { interval: "1week", outputsize: 108 },
 };
 
-const YF_HDR = {
-  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  "Accept": "application/json",
-  "Accept-Language": "en-US,en;q=0.9",
-  "Referer": "https://finance.yahoo.com/",
+// Yahoo symbol → Twelve Data symbol
+const TD_MAP = {
+  "^GSPC":    "SPX",
+  "^IXIC":    "IXIC",
+  "^DJI":     "DJI",
+  "^VIX":     "VIX",
+  "GC=F":     "XAU/USD",
+  "CL=F":     "WTI/USD",
+  "SI=F":     "XAG/USD",
+  "NG=F":     "NATGAS/USD",
+  "HG=F":     "COPPER/USD",
+  "^IRX":     "IRX",
+  "^TNX":     "TNX",
+  "^TYX":     "TYX",
+  "DX-Y.NYB": "DXY",
+  "USDKRW=X": "USD/KRW",
+  "BTC-USD":  "BTC/USD",
 };
-
-// Stooq symbol mapping
-const STOOQ_MAP = {
-  "^GSPC": "^spx", "^IXIC": "^ndq", "^DJI": "^dji", "^VIX": "^vix",
-  "GC=F": "gc.f", "CL=F": "cl.f", "SI=F": "si.f", "NG=F": "ng.f", "HG=F": "hg.f",
-  "^TNX": "10us.b", "^TYX": "30us.b", "^IRX": "13wk.b",
-  "BTC-USD": "btc.v", "USDKRW=X": "usdkrw",
-  "DX-Y.NYB": "dx.f",
-};
-
-const US_STOCKS = new Set(["AAPL","MSFT","GOOGL","AMZN","META","NVDA","TSLA","NFLX","ORCL","AMD",
-  "INTC","PYPL","CRM","ADBE","QCOM","TXN","AVGO","SBUX","COST","WMT","JPM","BAC","GS","MS","V","MA"]);
-
-function stooqSym(s) {
-  if (STOOQ_MAP[s]) return STOOQ_MAP[s];
-  const u = s.toUpperCase();
-  if (US_STOCKS.has(u) || (!s.includes("^") && !s.includes("=") && !s.includes("-") && !s.includes("."))) {
-    return s.toLowerCase() + ".us";
-  }
-  return s.toLowerCase();
-}
-
-function fmtDate(d) {
-  return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}`;
-}
-
-function parseYF(data) {
-  const closes = data.chart?.result?.[0]?.indicators?.quote?.[0]?.close ?? [];
-  const prices = closes.filter(v => v != null).map(v => +v.toFixed(2));
-  return prices.length > 0 ? prices : null;
-}
 
 export async function POST(request) {
   try {
     const { symbol, period } = await request.json();
     const cfg = CFG[period] || CFG["3M"];
-    const sym = encodeURIComponent(symbol);
+    const key = process.env.TWELVE_DATA_API_KEY;
+    if (!key) return Response.json({ prices: [] });
 
-    // 1) Yahoo Finance v8 (query1 then query2)
-    for (const base of ["query1", "query2"]) {
-      try {
-        const url = `https://${base}.finance.yahoo.com/v8/finance/chart/${sym}?range=${cfg.range}&interval=${cfg.iv}&includePrePost=false`;
-        const res = await fetch(url, { headers: YF_HDR, cache: "no-store" });
-        if (!res.ok) continue;
-        const prices = parseYF(await res.json());
-        if (prices) return Response.json({ prices });
-      } catch { continue; }
-    }
+    const tdSym = TD_MAP[symbol] || symbol;
+    const url = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(tdSym)}&interval=${cfg.interval}&outputsize=${cfg.outputsize}&apikey=${key}`;
 
-    // 2) Stooq CSV fallback
-    try {
-      const ss = stooqSym(symbol);
-      const today = new Date();
-      const from = new Date(today.getTime() - cfg.days * 86400000);
-      const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(ss)}&d1=${fmtDate(from)}&d2=${fmtDate(today)}&i=d`;
-      const res = await fetch(url, { headers: { "User-Agent": YF_HDR["User-Agent"] }, cache: "no-store" });
-      if (res.ok) {
-        const csv = await res.text();
-        if (!csv.includes("No data") && !csv.includes("<html")) {
-          const prices = csv.trim().split("\n").slice(1)
-            .filter(l => l.trim())
-            .map(l => parseFloat(l.split(",")[4]))
-            .filter(v => !isNaN(v))
-            .map(v => +v.toFixed(2));
-          if (prices.length > 0) return Response.json({ prices });
-        }
-      }
-    } catch {}
+    const r = await fetch(url, { cache: "no-store" });
+    if (!r.ok) return Response.json({ prices: [] });
 
-    return Response.json({ prices: [] });
+    const data = await r.json();
+    if (!data.values || data.status === "error") return Response.json({ prices: [] });
+
+    // values are newest-first; reverse to oldest-first for chart
+    const prices = [...data.values]
+      .reverse()
+      .map(v => parseFloat(v.close))
+      .filter(v => !isNaN(v))
+      .map(v => +v.toFixed(v >= 100 ? 2 : 4));
+
+    return Response.json({ prices });
   } catch {
     return Response.json({ prices: [] });
   }
