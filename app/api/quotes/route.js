@@ -1,13 +1,13 @@
 export const runtime = "edge";
 
-const SYMBOLS = ["AAPL","MSFT","GOOGL","AMZN","META","NVDA","TSLA","NFLX","ORCL","AMD","^GSPC","^DJI","^IXIC","^VIX","GC=F","CL=F","BTC-USD","^TNX","DX-Y.NYB","USDKRW=X"];
+const SYMBOLS = ["AAPL","MSFT","GOOGL","AMZN","META","NVDA","TSLA","NFLX","ORCL","AMD","^GSPC","^DJI","^IXIC","^VIX","GC=F","CL=F","SI=F","NG=F","HG=F","BTC-USD","^IRX","^TNX","^TYX","DX-Y.NYB","USDKRW=X"];
 
 const MAP = {
   "GC=F": "OANDA:XAU_USD",
   "CL=F": "OANDA:BRENT_USD",
+  "SI=F": "OANDA:XAG_USD",
   "BTC-USD": "BINANCE:BTCUSDT",
   "USDKRW=X": "OANDA:USD_KRW",
-  "DX-Y.NYB": null,
 };
 
 export async function POST() {
