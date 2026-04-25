@@ -1,6 +1,5 @@
 export const runtime = "edge";
 
-// period → Twelve Data params
 const CFG = {
   "1W": { interval: "1day",  outputsize: 8   },
   "1M": { interval: "1day",  outputsize: 35  },
@@ -10,7 +9,6 @@ const CFG = {
   "2Y": { interval: "1week", outputsize: 108 },
 };
 
-// Yahoo symbol → Twelve Data symbol
 const TD_MAP = {
   "^GSPC":    "SPX",
   "^IXIC":    "IXIC",
@@ -37,7 +35,8 @@ export async function POST(request) {
     if (!key) return Response.json({ prices: [] });
 
     const tdSym = TD_MAP[symbol] || symbol;
-    const url = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(tdSym)}&interval=${cfg.interval}&outputsize=${cfg.outputsize}&apikey=${key}`;
+    // Do NOT encode the symbol — Twelve Data expects raw format e.g. XAU/USD
+    const url = `https://api.twelvedata.com/time_series?symbol=${tdSym}&interval=${cfg.interval}&outputsize=${cfg.outputsize}&apikey=${key}`;
 
     const r = await fetch(url, { cache: "no-store" });
     if (!r.ok) return Response.json({ prices: [] });
@@ -45,7 +44,7 @@ export async function POST(request) {
     const data = await r.json();
     if (!data.values || data.status === "error") return Response.json({ prices: [] });
 
-    // values are newest-first; reverse to oldest-first for chart
+    // values are newest-first; reverse to oldest-first for chart rendering
     const prices = [...data.values]
       .reverse()
       .map(v => parseFloat(v.close))

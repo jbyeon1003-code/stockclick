@@ -31,14 +31,17 @@ export async function POST() {
   const key = process.env.TWELVE_DATA_API_KEY;
   if (!key) return Response.json({});
 
-  // Build comma-separated Twelve Data symbol list
+  // Comma-separated TD symbols — do NOT encodeURIComponent the whole string
   const tdSyms = ALL_SYMS.map(s => TD_MAP[s] || s).join(",");
 
   try {
-    const url = `https://api.twelvedata.com/quote?symbol=${encodeURIComponent(tdSyms)}&apikey=${key}`;
+    const url = `https://api.twelvedata.com/quote?symbol=${tdSyms}&apikey=${key}`;
     const r = await fetch(url, { cache: "no-store" });
     if (!r.ok) return Response.json({});
     const raw = await r.json();
+
+    // If API returned a top-level error, bail
+    if (raw.status === "error") return Response.json({});
 
     const out = {};
     ALL_SYMS.forEach(sym => {
