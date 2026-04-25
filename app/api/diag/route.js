@@ -41,7 +41,7 @@ export async function GET() {
       } catch(e) { results.coingecko = { ok: false, error: e.message }; }
     })(),
 
-    // Twelve Data
+    // Twelve Data quote
     (async () => {
       const tdKey = process.env.TWELVE_DATA_API_KEY;
       if (!tdKey) { results.twelvedata = { ok: false, error: "no key" }; return; }
@@ -50,6 +50,17 @@ export async function GET() {
         const d = await r.json();
         results.twelvedata = { ok: !!d.close, price: d.close, status: r.status };
       } catch(e) { results.twelvedata = { ok: false, error: e.message }; }
+    })(),
+
+    // Twelve Data time_series (chart)
+    (async () => {
+      const tdKey = process.env.TWELVE_DATA_API_KEY;
+      if (!tdKey) { results.td_chart = { ok: false, error: "no key" }; return; }
+      try {
+        const r = await fetch(`https://api.twelvedata.com/time_series?symbol=AAPL&interval=1day&outputsize=5&apikey=${tdKey}`);
+        const d = await r.json();
+        results.td_chart = { ok: d.status !== "error" && !!d.values?.length, status: r.status, tdStatus: d.status, rows: d.values?.length, error: d.message };
+      } catch(e) { results.td_chart = { ok: false, error: e.message }; }
     })(),
   ]);
 
