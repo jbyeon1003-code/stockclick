@@ -88,6 +88,51 @@ async function fetchVIX() {
   } catch { return null; }
 }
 
+// ── Treasury CSV (bonds) ──────────────────────────────────────────────────────
+async function fetchTreasuryYields() {
+  try {
+    const now = new Date();
+    for (let offset = 0; offset <= 1; offset++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+      const ym = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const url = `https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/all/${ym}?field_tdr_date_value_month=${ym}&type=daily_treasury_yield_curve&_format=csv`;
+      const r = await fetch(url);
+      if (!r.ok) continue;
+      const text = await r.text();
+      const lines = text.trim().split("\n").filter(l => l.trim());
+      if (lines.length < 3) continue;
+      const headers = lines[0].split(",").map(h => h.trim().replace(/"/g, ""));
+      const rows = lines.slice(1);
+      if (rows.length < 2) continue;
+      const parseRow = line => {
+        const parts = line.split(",").map(v => v.trim().replace(/"/g, ""));
+        const obj = {};
+        headers.forEach((h, i) => { obj[h] = parts[i]; });
+        return obj;
+      };
+      const latest = parseRow(rows[rows.length - 1]);
+      const prev = parseRow(rows[rows.length - 2]);
+      const makeYield = col => {
+        const p = parseFloat(latest[col]);
+        const pp = parseFloat(prev[col]);
+        if (isNaN(p) || isNaN(pp)) return null;
+        return { price: +p.toFixed(3), change: +(p - pp).toFixed(4), changePct: +(((p - pp) / pp) * 100).toFixed(2) };
+      };
+      const irx = makeYield("3 Mo");
+      const tnx = makeYield("10 Yr");
+      const tyx = makeYield("30 Yr");
+      if (irx || tnx || tyx) {
+        const o = {};
+        if (irx) o["^IRX"] = irx;
+        if (tnx) o["^TNX"] = tnx;
+        if (tyx) o["^TYX"] = tyx;
+        return o;
+      }
+    }
+    return {};
+  } catch { return {}; }
+}
+
 // ── ExchangeRate-API (FX) ─────────────────────────────────────────────────────
 async function fetchExchangeRates() {
   try {
@@ -215,18 +260,8 @@ export async function POST() {
     fetchYFQuote("^DJI"),
     fetchYFQuote("^IXIC"),
 
-    // Bonds: Yahoo Finance
-    Promise.all([
-      fetchYFQuote("^IRX"),
-      fetchYFQuote("^TNX"),
-      fetchYFQuote("^TYX"),
-    ]).then(([irx, tnx, tyx]) => {
-      const o = {};
-      if (irx) o["^IRX"] = irx;
-      if (tnx) o["^TNX"] = tnx;
-      if (tyx) o["^TYX"] = tyx;
-      return o;
-    }),
+    // Bonds: US Treasury CSV
+    fetchTreasuryYields(),
 
     // FX: ExchangeRate-API
     fetchExchangeRates(),
