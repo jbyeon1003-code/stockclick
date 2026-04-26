@@ -160,9 +160,27 @@ async function fetchTwelveData(key) {
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
-export async function POST() {
+export async function POST(req) {
   const tdKey = process.env.TWELVE_DATA_API_KEY;
   const finnhubKey = process.env.FINNHUB_API_KEY;
+
+  // If caller requests specific symbols not in the standard set, fetch just those
+  try {
+    const body = await req.json().catch(() => ({}));
+    if (body.symbols && Array.isArray(body.symbols)) {
+      const customSyms = body.symbols.filter(s => !ALL_SYMS.includes(s));
+      if (customSyms.length > 0) {
+        const out = {};
+        await Promise.all(customSyms.map(async sym => {
+          // Try Finnhub first (fast for US equities), fall back to Yahoo Finance
+          const d = finnhubKey ? await fetchFinnhubQuote(sym, finnhubKey) : null;
+          const result = d || await fetchYFQuote(sym);
+          if (result) out[sym] = result;
+        }));
+        return Response.json(out);
+      }
+    }
+  } catch { /* fall through to standard fetch */ }
 
   // Twelve Data full override when available
   if (tdKey) {
