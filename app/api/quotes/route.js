@@ -88,45 +88,6 @@ async function fetchVIX() {
   } catch { return null; }
 }
 
-// ── Treasury XML (bonds) ──────────────────────────────────────────────────────
-async function fetchTreasuryYields() {
-  try {
-    const now = new Date();
-    const ym = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
-    const url = `https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_yield_curve&field_tdr_date_value_month=${ym}`;
-    const r = await fetch(url);
-    if (!r.ok) return {};
-    const text = await r.text();
-
-    // Extract all entries with date + the three yields
-    const entries = [...text.matchAll(
-      /<d:NEW_DATE>([^<]+)<\/d:NEW_DATE>[\s\S]*?<d:BC_3MONTH[^>]*>([^<]*)<\/d:BC_3MONTH>[\s\S]*?<d:BC_10YEAR[^>]*>([^<]*)<\/d:BC_10YEAR>[\s\S]*?<d:BC_30YEAR[^>]*>([^<]*)<\/d:BC_30YEAR>/g
-    )];
-
-    if (!entries.length) return {};
-    const last = entries[entries.length - 1];
-    const prev = entries.length > 1 ? entries[entries.length - 2] : null;
-
-    const makeYield = (cur, prevVal) => {
-      const p = parseFloat(cur);
-      const pp = prevVal != null ? parseFloat(prevVal) : p;
-      if (isNaN(p)) return null;
-      const pp2 = isNaN(pp) ? p : pp;
-      return {
-        price: +p.toFixed(3),
-        change: +(p - pp2).toFixed(4),
-        changePct: +(((p - pp2) / pp2) * 100).toFixed(2),
-      };
-    };
-
-    return {
-      "^IRX": makeYield(last[2], prev?.[2]),
-      "^TNX": makeYield(last[3], prev?.[3]),
-      "^TYX": makeYield(last[4], prev?.[4]),
-    };
-  } catch { return {}; }
-}
-
 // ── ExchangeRate-API (FX) ─────────────────────────────────────────────────────
 async function fetchExchangeRates() {
   try {
@@ -254,8 +215,18 @@ export async function POST() {
     fetchYFQuote("^DJI"),
     fetchYFQuote("^IXIC"),
 
-    // Bonds: Treasury XML
-    fetchTreasuryYields(),
+    // Bonds: Yahoo Finance
+    Promise.all([
+      fetchYFQuote("^IRX"),
+      fetchYFQuote("^TNX"),
+      fetchYFQuote("^TYX"),
+    ]).then(([irx, tnx, tyx]) => {
+      const o = {};
+      if (irx) o["^IRX"] = irx;
+      if (tnx) o["^TNX"] = tnx;
+      if (tyx) o["^TYX"] = tyx;
+      return o;
+    }),
 
     // FX: ExchangeRate-API
     fetchExchangeRates(),
