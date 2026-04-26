@@ -28,70 +28,40 @@ const TD_MAP = {
   "BTC-USD":  "BTC/USD",
 };
 
-// ── Stooq symbol mapping ──────────────────────────────────────────────────────
-const STOOQ_MAP = {
-  "AAPL":     "aapl.us",
-  "MSFT":     "msft.us",
-  "GOOGL":    "googl.us",
-  "AMZN":     "amzn.us",
-  "META":     "meta.us",
-  "NVDA":     "nvda.us",
-  "TSLA":     "tsla.us",
-  "NFLX":     "nflx.us",
-  "ORCL":     "orcl.us",
-  "AMD":      "amd.us",
-  "^GSPC":    "^spx",
-  "^DJI":     "^dji",
-  "^IXIC":    "^ndx",
-  "^VIX":     "^vix",
-  "GC=F":     "xauusd",
-  "CL=F":     "cl.f",
-  "SI=F":     "xagusd",
-  "NG=F":     "natgas.f",
-  "HG=F":     "hgusd",
-  "^IRX":     "irx.us",
-  "^TNX":     "tnx.us",
-  "^TYX":     "tyx.us",
-  "DX-Y.NYB": "dxy.f",
-  "USDKRW=X": "usdkrw",
-};
-
-// Calendar-day window for each period
-const PERIOD_DAYS = {
-  "1W": 7, "1M": 32, "3M": 95, "6M": 185, "1Y": 370, "2Y": 740,
-};
-
 // CoinGecko days param
 const CG_DAYS = {
   "1W": 7, "1M": 30, "3M": 90, "6M": 180, "1Y": 365, "2Y": 730,
 };
 
-function parseCsvHistory(csv) {
-  const lines = csv.trim().split("\n").filter(l => l && !l.toLowerCase().startsWith("date"));
-  return lines.map(l => {
-    const parts = l.split(",");
-    return { date: parts[0]?.trim(), close: parseFloat(parts[4]) };
-  }).filter(r => r.date && !isNaN(r.close));
-}
+// Yahoo Finance period mapping
+const YF_CFG = {
+  "1W": { range: "5d",  interval: "1d"  },
+  "1M": { range: "1mo", interval: "1d"  },
+  "3M": { range: "3mo", interval: "1d"  },
+  "6M": { range: "6mo", interval: "1wk" },
+  "1Y": { range: "1y",  interval: "1wk" },
+  "2Y": { range: "2y",  interval: "1wk" },
+};
 
-function cutoff(days) {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  return d.toISOString().slice(0, 10);
-}
-
-async function fetchStooqChart(symbol, period) {
-  const stooqSym = STOOQ_MAP[symbol];
-  if (!stooqSym) return null;
+async function fetchYFChart(symbol, period) {
   try {
-    const days = PERIOD_DAYS[period] || 95;
-    const from = cutoff(days);
-    const url = `https://stooq.com/q/d/l/?s=${stooqSym}&d1=${from.replace(/-/g, "")}&i=d`;
-    const r = await fetch(url);
+    const cfg = YF_CFG[period] || YF_CFG["3M"];
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${cfg.range}&interval=${cfg.interval}`;
+    const r = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
     if (!r.ok) return null;
-    const rows = parseCsvHistory(await r.text());
-    if (rows.length === 0) return null;
-    return rows.map(({ date, close }) => ({ date, close }));
+    const d = await r.json();
+    const result = d.chart?.result?.[0];
+    if (!result) return null;
+    const timestamps = result.timestamp ?? [];
+    const closes = result.indicators?.quote?.[0]?.close ?? [];
+    const prices = [];
+    for (let i = 0; i < timestamps.length; i++) {
+      const close = closes[i];
+      if (close == null || isNaN(close)) continue;
+      const date = new Date(timestamps[i] * 1000).toISOString().slice(0, 10);
+      prices.push({ date, close: +close.toFixed(4) });
+    }
+    return prices.length > 0 ? prices : null;
   } catch { return null; }
 }
 
@@ -143,7 +113,7 @@ export async function POST(req) {
     return Response.json({ prices: prices ?? [] });
   }
 
-  // All others: Stooq
-  const prices = await fetchStooqChart(symbol, period);
+  // All others: Yahoo Finance
+  const prices = await fetchYFChart(symbol, period);
   return Response.json({ prices: prices ?? [] });
 }
