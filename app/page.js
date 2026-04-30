@@ -182,7 +182,7 @@ function FGGauge({ data, C, dark }) {
   const tc = dark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)";
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-      <svg viewBox="0 0 200 130" width="100%" height="130">
+      <svg viewBox="0 0 200 165" width="100%" height="165">
         {[[-135, -81, "#f43f5e"], [-81, -27, "#f97316"], [-27, 27, "#f59e0b"], [27, 81, "#84cc16"], [81, 135, "#10b981"]].map(([a1, a2, c], i) => <path key={i} d={arc(a1, a2)} fill="none" stroke={c} strokeWidth={11} strokeLinecap="butt" opacity={0.22} />)}
         <path d={arc(-135, fe)} fill="none" stroke={col} strokeWidth={11} strokeLinecap="round" />
         <line x1={cx} y1={cy} x2={nx} y2={ny} stroke={dark ? "#eee" : "#1e293b"} strokeWidth={2.5} strokeLinecap="round" />
